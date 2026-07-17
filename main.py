@@ -116,6 +116,8 @@ def main():
                 app.deiconify()
                 app.lift()
                 app.focus_force()
+                if app._overlay_visible:
+                    app.after(50, app.overlay.lift)
 
             tray_icon = pystray.Icon(
                 "Gauge",
@@ -129,6 +131,8 @@ def main():
 
             def on_close_to_tray():
                 app.withdraw()
+                if app._overlay_visible:
+                    app.after(50, app.overlay.lift)
 
             app.protocol("WM_DELETE_WINDOW", on_close_to_tray)
             app.set_tray_icon(tray_icon)

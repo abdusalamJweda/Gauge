@@ -1,5 +1,4 @@
 import customtkinter as ctk
-from typing import Optional
 from core.sensors import SensorSnapshot
 
 
@@ -15,7 +14,6 @@ class OverlayWindow(ctk.CTkToplevel):
             self.attributes("-toolwindow", True)
         except Exception:
             pass
-        self.transient(master)
         self._apply_opacity()
         ov = self.config.get("overlay", {})
         self.configure(fg_color=ov.get("bg_color", "#1a1a2e"))
@@ -25,43 +23,27 @@ class OverlayWindow(ctk.CTkToplevel):
         self.withdraw()
 
     def _build_ui(self):
-        self._frame = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
-        self._frame.pack(fill="both", expand=True, padx=6, pady=4)
-
         ov = self.config.get("overlay", {})
         font_size = ov.get("font_size", 12)
         font = ctk.CTkFont(family="Consolas", size=font_size)
+        small_font = ctk.CTkFont(family="Consolas", size=max(8, font_size - 2))
 
-        self._cpu_label = ctk.CTkLabel(
-            self._frame, text="CPU --%", font=font, text_color="#888", anchor="w"
+        self._frame = ctk.CTkFrame(
+            self, fg_color="transparent", corner_radius=8
         )
-        self._cpu_label.pack(side="left", padx=(0, 10))
+        self._frame.pack(fill="both", expand=True, padx=8, pady=6)
 
-        self._gpu_label = ctk.CTkLabel(
-            self._frame, text="GPU --%", font=font, text_color="#888", anchor="w"
-        )
-        self._gpu_label.pack(side="left", padx=(0, 10))
+        self._metrics = {}
+        for key in ["cpu", "gpu", "ram", "fps"]:
+            lbl = ctk.CTkLabel(
+                self._frame, text="", font=font, text_color="#666", anchor="w"
+            )
+            lbl.pack(side="left", padx=(0, 8))
+            self._metrics[key] = lbl
 
-        self._ram_label = ctk.CTkLabel(
-            self._frame, text="RAM --%", font=font, text_color="#888", anchor="w"
-        )
-        self._ram_label.pack(side="left", padx=(0, 10))
-
-        self._fps_label = ctk.CTkLabel(
-            self._frame, text="FPS --", font=font, text_color="#888", anchor="w"
-        )
-        self._fps_label.pack(side="left")
-
-        self._frame.bind("<ButtonPress-1>", self._on_press)
-        self._frame.bind("<B1-Motion>", self._on_drag)
-        self._cpu_label.bind("<ButtonPress-1>", self._on_press)
-        self._cpu_label.bind("<B1-Motion>", self._on_drag)
-        self._gpu_label.bind("<ButtonPress-1>", self._on_press)
-        self._gpu_label.bind("<B1-Motion>", self._on_drag)
-        self._ram_label.bind("<ButtonPress-1>", self._on_press)
-        self._ram_label.bind("<B1-Motion>", self._on_drag)
-        self._fps_label.bind("<ButtonPress-1>", self._on_press)
-        self._fps_label.bind("<B1-Motion>", self._on_drag)
+        for widget in [self._frame] + list(self._metrics.values()):
+            widget.bind("<ButtonPress-1>", self._on_press)
+            widget.bind("<B1-Motion>", self._on_drag)
 
     def _apply_opacity(self):
         ov = self.config.get("overlay", {})
@@ -73,6 +55,7 @@ class OverlayWindow(ctk.CTkToplevel):
         position = ov.get("position", "top-right")
         self.update_idletasks()
         w = self.winfo_reqwidth()
+        h = self.winfo_reqheight()
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
         margin = 12
@@ -80,10 +63,14 @@ class OverlayWindow(ctk.CTkToplevel):
         positions = {
             "top-right": (sw - w - margin, margin),
             "top-left": (margin, margin),
-            "bottom-right": (sw - w - margin, sh - 40 - margin),
-            "bottom-left": (margin, sh - 40 - margin),
+            "bottom-right": (sw - w - margin, sh - h - margin),
+            "bottom-left": (margin, sh - h - margin),
         }
         x, y = positions.get(position, positions["top-right"])
+
+        x = max(0, min(x, sw - w - margin))
+        y = max(0, min(y, sh - h - margin))
+
         self.geometry(f"+{x}+{y}")
 
     def _on_press(self, event):
@@ -93,41 +80,48 @@ class OverlayWindow(ctk.CTkToplevel):
     def _on_drag(self, event):
         x = event.x_root - self._drag_data["x"]
         y = event.y_root - self._drag_data["y"]
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        w = self.winfo_reqwidth()
+        h = self.winfo_reqheight()
+        x = max(0, min(x, sw - w))
+        y = max(0, min(y, sh - h))
         self.geometry(f"+{x}+{y}")
 
     def update_values(self, snap: SensorSnapshot):
         ov = self.config.get("overlay", {})
+
         if ov.get("show_cpu", True) and snap.cpu_usage is not None:
-            color = self._metric_color(snap.cpu_usage, 65, 85)
-            self._cpu_label.configure(text=f"CPU {snap.cpu_usage:.0f}%", text_color=color)
+            c = self._color(snap.cpu_usage, 65, 85)
+            self._metrics["cpu"].configure(text=f"CPU {snap.cpu_usage:.0f}%", text_color=c)
         else:
-            self._cpu_label.configure(text="CPU --%", text_color="#555")
+            self._metrics["cpu"].configure(text="", text_color="#555")
 
         if ov.get("show_gpu", True) and snap.gpu_usage is not None:
-            color = self._metric_color(snap.gpu_usage, 75, 90)
-            self._gpu_label.configure(text=f"GPU {snap.gpu_usage:.0f}%", text_color=color)
+            c = self._color(snap.gpu_usage, 75, 90)
+            self._metrics["gpu"].configure(text=f"GPU {snap.gpu_usage:.0f}%", text_color=c)
         else:
-            self._gpu_label.configure(text="GPU --%", text_color="#555")
+            self._metrics["gpu"].configure(text="", text_color="#555")
 
         if ov.get("show_ram", True):
-            color = self._metric_color(snap.ram_percent, 70, 90)
-            self._ram_label.configure(text=f"RAM {snap.ram_percent:.0f}%", text_color=color)
+            c = self._color(snap.ram_percent, 70, 90)
+            self._metrics["ram"].configure(text=f"RAM {snap.ram_percent:.0f}%", text_color=c)
         else:
-            self._ram_label.configure(text="RAM --%", text_color="#555")
+            self._metrics["ram"].configure(text="", text_color="#555")
 
         if ov.get("show_fps", True) and snap.fps is not None:
             if snap.fps >= 60:
-                color = "#22c55e"
+                c = "#22c55e"
             elif snap.fps >= 30:
-                color = "#f59e0b"
+                c = "#f59e0b"
             else:
-                color = "#ef4444"
-            self._fps_label.configure(text=f"FPS {snap.fps:.0f}", text_color=color)
+                c = "#ef4444"
+            self._metrics["fps"].configure(text=f"FPS {snap.fps:.0f}", text_color=c)
         else:
-            self._fps_label.configure(text="FPS --", text_color="#555")
+            self._metrics["fps"].configure(text="", text_color="#555")
 
     @staticmethod
-    def _metric_color(value: float, warn: float, crit: float) -> str:
+    def _color(value: float, warn: float, crit: float) -> str:
         if value >= crit:
             return "#ef4444"
         if value >= warn:
@@ -141,8 +135,8 @@ class OverlayWindow(ctk.CTkToplevel):
 
         font_size = overlay_cfg.get("font_size", 12)
         font = ctk.CTkFont(family="Consolas", size=font_size)
-        for label in [self._cpu_label, self._gpu_label, self._ram_label, self._fps_label]:
-            label.configure(font=font)
+        for lbl in self._metrics.values():
+            lbl.configure(font=font)
 
     def show_overlay(self):
         self.deiconify()
