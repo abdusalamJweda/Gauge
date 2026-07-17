@@ -2,6 +2,8 @@ import customtkinter as ctk
 import threading
 from typing import Optional
 from core.sensors import SensorSnapshot
+from gui.overlay import OverlayWindow
+from gui.overlay_settings import OverlaySettingsDialog
 
 
 class ComponentCard(ctk.CTkFrame):
@@ -122,14 +124,19 @@ class MainWindow(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("dark-blue")
 
-        self.title("Hardware Monitor")
+        self.title("Gauge")
         self.geometry("600x620")
         self.minsize(540, 520)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._tray_icon = None
+        self.overlay = OverlayWindow(self, self.config)
+        self._overlay_visible = self.config.get("overlay", {}).get("enabled", False)
         self._build_ui()
         self._start_update_loop()
+        if self._overlay_visible:
+            self.after(200, self.overlay.show_overlay)
+            self._update_overlay_btn()
 
     def _build_ui(self):
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -161,6 +168,19 @@ class MainWindow(ctk.CTk):
             command=self._open_settings, fg_color="#555"
         )
         self.settings_btn.pack(side="left", padx=5)
+
+        self.overlay_btn = ctk.CTkButton(
+            btn_frame, text="Overlay", width=80,
+            command=self._toggle_overlay, fg_color="#555"
+        )
+        self.overlay_btn.pack(side="left", padx=(10, 2))
+
+        self.overlay_settings_btn = ctk.CTkButton(
+            btn_frame, text="\u2699", width=28, height=28,
+            command=self._open_overlay_settings, fg_color="#444",
+            font=ctk.CTkFont(size=16)
+        )
+        self.overlay_settings_btn.pack(side="left", padx=0)
 
         self.status_label = ctk.CTkLabel(
             btn_frame, text="Ready", font=ctk.CTkFont(size=11),
@@ -250,6 +270,8 @@ class MainWindow(ctk.CTk):
 
     def _on_snapshot(self, snap: SensorSnapshot):
         self.after(0, self._update_display, snap)
+        if self._overlay_visible:
+            self.after(0, self.overlay.update_values, snap)
 
         alerts = self.alert_manager.check(snap)
         for alert in alerts:
@@ -292,9 +314,41 @@ class MainWindow(ctk.CTk):
     def set_tray_icon(self, icon):
         self._tray_icon = icon
 
+    def _toggle_overlay(self):
+        self._overlay_visible = not self._overlay_visible
+        self.config.setdefault("overlay", {})["enabled"] = self._overlay_visible
+        self.save_config_fn(self.config)
+        if self._overlay_visible:
+            self.overlay.apply_config(self.config.get("overlay", {}))
+            self.overlay.show_overlay()
+        else:
+            self.overlay.hide_overlay()
+        self._update_overlay_btn()
+
+    def _update_overlay_btn(self):
+        if self._overlay_visible:
+            self.overlay_btn.configure(text="Overlay", fg_color="#7c3aed")
+        else:
+            self.overlay_btn.configure(text="Overlay", fg_color="#555")
+
+    def _open_overlay_settings(self):
+        OverlaySettingsDialog(
+            self,
+            self.config.get("overlay", {}),
+            on_save=self._on_overlay_settings_save,
+        )
+
+    def _on_overlay_settings_save(self, new_overlay_cfg):
+        self.config["overlay"] = new_overlay_cfg
+        self.save_config_fn(self.config)
+        self.overlay.apply_config(new_overlay_cfg)
+        self.status_label.configure(text="Overlay settings saved", text_color="#22c55e")
+        self.after(3000, lambda: self.status_label.configure(text="Monitoring", text_color="#888"))
+
     def _on_close(self):
         if self._tray_icon:
             self._tray_icon.stop()
+        self.overlay.destroy()
         self.aggregator.stop()
         self.csv_logger.stop()
         self.destroy()

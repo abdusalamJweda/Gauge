@@ -190,13 +190,13 @@ def _get_wmi_drive_mapping() -> dict:
     try:
         import wmi
         w = wmi.WMI()
-        for disk in w.Win32_DiskDrive():
-            drive_idx = disk.Index
-            for logical in disk.Associators("Win32_DiskDriveToDiskPartition"):
-                for logical_disk in logical.Associators("Win32_LogicalDiskToPartition"):
-                    if hasattr(logical_disk, "DeviceID") and logical_disk.DeviceID:
-                        letter = logical_disk.DeviceID[0].upper()
-                        mapping[letter] = drive_idx
+        for item in w.Win32_LogicalDiskToPartition():
+            try:
+                letter = item.Dependent.DeviceID[0].upper()
+                disk_index = item.Antecedent.DiskIndex
+                mapping[letter] = disk_index
+            except Exception:
+                continue
     except Exception as e:
         logger.debug(f"WMI drive mapping failed: {e}")
     return mapping
@@ -230,11 +230,8 @@ class DiskSensor:
     @staticmethod
     def _match_lhm_temps() -> dict:
         if not _lhm_disk_temps:
-            logger.info("No LHM disk temps available")
             return {}
         model_map = DiskSensor._get_drive_model_names()
-        logger.info(f"WMI drive models: {model_map}")
-        logger.info(f"LHM disk temps: {_lhm_disk_temps}")
         result = {}
         for drive_idx, model_name in model_map.items():
             for lhm_name, temp in _lhm_disk_temps.items():
@@ -250,7 +247,6 @@ class DiskSensor:
             for i, drive_idx in enumerate(sorted_drives):
                 if i < len(sorted_lhm):
                     result[drive_idx] = sorted_lhm[i][1]
-        logger.info(f"Matched LHM temps: {result}")
         return result
 
     def get_stats(self) -> List[dict]:

@@ -45,7 +45,7 @@ def _init_lhm():
     try:
         import clr
         clr.AddReference(dll_path)
-        from LibreHardwareMonitor.Hardware import Computer, SensorType
+        from LibreHardwareMonitor.Hardware import Computer
 
         computer = Computer()
         computer.IsCpuEnabled = True
@@ -60,7 +60,7 @@ def _init_lhm():
         logger.info("LibreHardwareMonitor initialized")
         return True
     except Exception as e:
-        logger.debug(f"LHM init failed: {e}")
+        logger.warning(f"LHM init failed: {e}")
         _lhm_computer = False
         return False
 
@@ -121,30 +121,21 @@ def get_lhm_disk_temps() -> dict:
     if not _init_lhm():
         return {}
     try:
-        from LibreHardwareMonitor.Hardware import SensorType, HardwareType
+        from LibreHardwareMonitor.Hardware import SensorType
         temps = {}
-        hw_list = list(_lhm_computer.Hardware)
-        logger.info(f"LHM hardware count: {len(hw_list)}")
-        for hardware in hw_list:
-            hw_type = hardware.HardwareType
-            logger.info(f"LHM hw: {hardware.Name} type={hw_type}")
+        for hardware in _lhm_computer.Hardware:
+            hw_type_str = str(hardware.HardwareType)
+            if "Storage" not in hw_type_str:
+                continue
             hardware.Update()
             for sub in hardware.SubHardware:
                 sub.Update()
-                logger.info(f"  sub: {sub.Name} type={sub.HardwareType}")
             for sensor in hardware.Sensors:
                 if sensor.SensorType == SensorType.Temperature:
-                    logger.info(f"  sensor: {sensor.Name} = {sensor.Value}")
-        for hardware in hw_list:
-            if hardware.HardwareType == HardwareType.Storage:
-                for sensor in hardware.Sensors:
-                    if sensor.SensorType == SensorType.Temperature:
-                        val = sensor.Value
-                        if val is not None and val > 0:
-                            name = hardware.Name or ""
-                            temps[name] = float(val)
-                            logger.info(f"LHM disk temp: {name} = {val}")
-        logger.info(f"LHM disk temps result: {temps}")
+                    val = sensor.Value
+                    if val is not None and val > 0:
+                        name = hardware.Name or ""
+                        temps[name] = float(val)
         return temps
     except Exception as e:
         logger.debug(f"LHM disk temp query failed: {e}")

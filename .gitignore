@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.egg-info/
+crash.log
+debug_log.txt
+wmi_debug*.txt
+wmi_test*.py
+test_lhm_disk.py
+test_lhm_result.txt
+debug_disk.py
+run_test.bat

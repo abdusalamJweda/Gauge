@@ -51,6 +51,17 @@ def load_config() -> dict:
             "show_ram": True,
             "show_disk": True,
         },
+        "overlay": {
+            "enabled": False,
+            "opacity": 0.85,
+            "position": "top-right",
+            "show_cpu": True,
+            "show_gpu": True,
+            "show_ram": True,
+            "show_fps": True,
+            "bg_color": "#1a1a2e",
+            "font_size": 12,
+        },
     }
     path = get_config_path()
     try:
@@ -104,6 +115,7 @@ class SensorSnapshot:
     ram_modules: Optional[int] = None
     ram_manufacturer: Optional[str] = None
     disks: List[dict] = field(default_factory=list)
+    fps: Optional[float] = None
 
 
 class SensorAggregator:

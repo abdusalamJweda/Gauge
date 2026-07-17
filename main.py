@@ -79,7 +79,7 @@ def main():
     set_app_dir(_app_dir)
 
     config = load_config()
-    logger.info("Config loaded. Starting Hardware Monitor...")
+    logger.info("Config loaded. Starting Gauge...")
 
     aggregator = SensorAggregator(config)
     csv_logger = CsvLogger(config)
@@ -118,9 +118,9 @@ def main():
                 app.focus_force()
 
             tray_icon = pystray.Icon(
-                "Hardware Monitor",
+                "Gauge",
                 create_tray_icon(),
-                "Hardware Monitor",
+                "Gauge",
                 menu=pystray.Menu(
                     pystray.MenuItem("Show", on_show, default=True),
                     pystray.MenuItem("Quit", on_quit),
