@@ -1,12 +1,10 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTabWidget, QFrame, QScrollArea, QProgressBar, QWidget,
-    QSizePolicy
+    QTabWidget, QFrame, QScrollArea, QProgressBar, QWidget
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
 
-from core.sensors import SensorSnapshot
 from core.network import NetworkSensor
 from gui.theme import (
     BG_DARK, BG_CARD, ACCENT, GREEN, YELLOW, RED, TEXT_PRIMARY,

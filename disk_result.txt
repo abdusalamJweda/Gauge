@@ -1,3 +1,0 @@
-Admin: False
-\\.\PhysicalDrive0: Open fail err=0
-\\.\PhysicalDrive1: Open fail err=0

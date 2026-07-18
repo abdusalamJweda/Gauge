@@ -5,11 +5,15 @@ dist/
 *.egg-info/
 crash.log
 debug_log.txt
+debug_disk.py
+disk_result.txt
+disk_test.py
 wmi_debug*.txt
 wmi_test*.py
 test_lhm_disk.py
 test_lhm_result.txt
-debug_disk.py
+test_disk.py
+test_disk_admin.bat
 run_test.bat
 *.exe
 *.spec
@@ -17,3 +21,4 @@ main.dist/
 main_qt.dist/
 main_qt.build/
 main_qt.onefile-build/
+logs/

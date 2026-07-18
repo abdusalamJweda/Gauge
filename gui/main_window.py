@@ -3,12 +3,12 @@ import threading
 import time
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QScrollArea, QProgressBar, QSizePolicy
+    QFrame, QScrollArea, QProgressBar, QComboBox
 )
 from PySide6.QtCore import Qt, QTimer, Signal, QObject, QThread
-from PySide6.QtGui import QFont, QIcon, QShortcut, QKeySequence
+from PySide6.QtGui import QFont, QIcon
 
-from core.sensors import SensorSnapshot, get_assets_dir
+from core.sensors import get_assets_dir
 from core.alerts import send_notification
 from gui.graphs import MiniGraphSet
 from gui.settings import SettingsDialog
@@ -123,6 +123,126 @@ class ComponentCard(QFrame):
         """)
 
 
+class DiskCard(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: {BG_CARD};
+                border: 1px solid {BORDER};
+                border-radius: 12px;
+            }}
+        """)
+        self._disks = []
+        self._selected_index = 0
+
+        hl = QHBoxLayout(self)
+        hl.setContentsMargins(14, 12, 14, 12)
+        hl.setSpacing(10)
+
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        icon_lbl = QLabel("\U0001f4bf")
+        icon_lbl.setFont(QFont("Segoe UI", 18))
+        icon_lbl.setStyleSheet(f"color: {ACCENT};")
+        left.addWidget(icon_lbl)
+        title_lbl = QLabel("DISK")
+        title_lbl.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title_lbl.setStyleSheet(f"color: {TEXT_PRIMARY};")
+        left.addWidget(title_lbl)
+        hl.addLayout(left)
+
+        right = QVBoxLayout()
+        right.setSpacing(2)
+
+        self.part_combo = QComboBox()
+        self.part_combo.setFixedHeight(28)
+        self.part_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: #1a2332; border: 1px solid {BORDER}; border-radius: 4px;
+                padding: 2px 8px; color: {TEXT_PRIMARY}; font-family: "Consolas"; font-size: 11px;
+            }}
+            QComboBox::drop-down {{ border: none; width: 20px; }}
+            QComboBox::down-arrow {{ image: none; border-left: 4px solid transparent; border-right: 4px solid transparent;
+                                     border-top: 6px solid {TEXT_SECONDARY}; margin-right: 6px; }}
+            QComboBox QAbstractItemView {{ background-color: {BG_CARD}; color: {TEXT_PRIMARY}; selection-background-color: #253349; border: 1px solid {BORDER}; }}
+        """)
+        self.part_combo.currentIndexChanged.connect(self._on_partition_changed)
+        right.addWidget(self.part_combo)
+
+        self._detail_labels = []
+        for _ in range(2):
+            lbl = QLabel("--")
+            lbl.setFont(QFont("Consolas", 11))
+            lbl.setStyleSheet(f"color: {TEXT_SECONDARY};")
+            right.addWidget(lbl)
+            self._detail_labels.append(lbl)
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 1000)
+        self.progress.setValue(0)
+        self.progress.setFixedHeight(6)
+        self.progress.setTextVisible(False)
+        self.progress.setStyleSheet(f"""
+            QProgressBar {{ border: none; border-radius: 3px; background-color: #1a2332; }}
+            QProgressBar::chunk {{ border-radius: 3px; background-color: {ACCENT}; }}
+        """)
+        right.addWidget(self.progress)
+        hl.addLayout(right, 1)
+
+    def _on_partition_changed(self, index):
+        self._selected_index = index
+        if 0 <= index < len(self._disks):
+            d = self._disks[index]
+            self._refresh_display(d)
+
+    def _refresh_display(self, d):
+        fmt = self._fmt_size
+        l1 = f"{d['device']}  |  {fmt(d['used_gb'])} / {fmt(d['total_gb'])}  ({d['percent']:.0f}%)"
+        l2 = f"Free: {fmt(d['free_gb'])}  |   {d['fstype']}"
+        self._detail_labels[0].setText(l1)
+        self._detail_labels[1].setText(l2)
+        pct = d["percent"] / 100
+        self.progress.setValue(int(max(0, min(1, pct)) * 1000))
+        c = temp_color(d.get("temp_celsius"), 70)
+        self.progress.setStyleSheet(f"""
+            QProgressBar {{ border: none; border-radius: 3px; background-color: #1a2332; }}
+            QProgressBar::chunk {{ border-radius: 3px; background-color: {c}; }}
+        """)
+
+    def update_disks(self, disks):
+        prev_text = self.part_combo.currentText() if self.part_combo.count() > 0 else ""
+        self._disks = disks
+
+        self.part_combo.blockSignals(True)
+        self.part_combo.clear()
+        for d in disks:
+            self.part_combo.addItem(f"{d['device']}  ({d['fstype']})")
+        self.part_combo.blockSignals(False)
+
+        if disks:
+            restore_idx = 0
+            if prev_text:
+                for i, d in enumerate(disks):
+                    label = f"{d['device']}  ({d['fstype']})"
+                    if label == prev_text:
+                        restore_idx = i
+                        break
+            self.part_combo.setCurrentIndex(restore_idx)
+            self._selected_index = restore_idx
+            self._refresh_display(disks[restore_idx])
+        else:
+            for lbl in self._detail_labels:
+                lbl.setText("--")
+            self.progress.setValue(0)
+
+    @staticmethod
+    def _fmt_size(gb):
+        if gb >= 1024:
+            return f"{gb / 1024:.1f} TB"
+        return f"{gb:.1f} GB"
+
+
 class MainWindow(QMainWindow):
     def __init__(self, aggregator, config, csv_logger, alert_manager, save_config_fn):
         super().__init__()
@@ -183,11 +303,11 @@ class MainWindow(QMainWindow):
 
         self.cpu_card = ComponentCard("CPU", "\u2699\ufe0f", lines=3)
         cl.addWidget(self.cpu_card)
-        self.gpu_card = ComponentCard("GPU", "\U0001f3ae", lines=3)
+        self.gpu_card = ComponentCard("GPU", "\U0001f5a5", lines=3)
         cl.addWidget(self.gpu_card)
         self.ram_card = ComponentCard("RAM", "\U0001f4e6", lines=3)
         cl.addWidget(self.ram_card)
-        self.disk_card = ComponentCard("DISK", "\U0001f4bf", lines=3)
+        self.disk_card = DiskCard()
         cl.addWidget(self.disk_card)
 
         graphs_header = QLabel("Performance Graphs")
@@ -301,16 +421,7 @@ class MainWindow(QMainWindow):
         l3 = " | ".join(ram_parts) if ram_parts else "RAM"
         self.ram_card.update_values([l1, l2, l3], snap.ram_percent / 100, color=GREEN)
 
-        if snap.disks:
-            d = snap.disks[0]
-            l1 = f"{d['device']}  |  {self._fmt_size(d['used_gb'])} / {self._fmt_size(d['total_gb'])}  ({d['percent']:.0f}%)"
-            l2 = f"Free: {self._fmt_size(d['free_gb'])}  |   {d['fstype']}"
-            temp_str = self._fmt_temp(d.get("temp_celsius")) if d.get("temp_celsius") is not None else "N/A"
-            l3 = f"Temp: {temp_str}"
-            self.disk_card.update_values([l1, l2, l3], d["percent"] / 100,
-                                          color=temp_color(d.get("temp_celsius"), 70))
-        else:
-            self.disk_card.update_values(["No disks detected", "", ""], 0)
+        self.disk_card.update_disks(snap.disks or [])
 
     def _on_snapshot(self, snap):
         if self._is_resizing:
@@ -328,8 +439,10 @@ class MainWindow(QMainWindow):
         send_notification("Hardware Alert", alert["message"])
         self.status_label.setText(f"Alert: {alert['message'][:40]}...")
         self.status_label.setStyleSheet(f"color: {RED};")
-        QTimer.singleShot(8000, lambda: self.status_label.setText("Monitoring")
-                          or self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"))
+        QTimer.singleShot(8000, lambda: (
+            self.status_label.setText("Monitoring"),
+            self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"),
+        ))
 
     def _start_update_loop(self):
         self._worker = SensorPollWorker(self.aggregator, self.config, self.alert_manager)
@@ -402,8 +515,10 @@ class MainWindow(QMainWindow):
         self.alert_manager.cooldown = new_config.get("alerts", {}).get("cooldown_seconds", 300)
         self.status_label.setText("Settings saved")
         self.status_label.setStyleSheet(f"color: {GREEN};")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("Monitoring")
-                          or self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"))
+        QTimer.singleShot(3000, lambda: (
+            self.status_label.setText("Monitoring"),
+            self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"),
+        ))
 
     def _toggle_overlay(self):
         self._overlay_visible = not self._overlay_visible
@@ -444,8 +559,10 @@ class MainWindow(QMainWindow):
         self._overlay.apply_config(new_cfg)
         self.status_label.setText("Overlay settings saved")
         self.status_label.setStyleSheet(f"color: {GREEN};")
-        QTimer.singleShot(3000, lambda: self.status_label.setText("Monitoring")
-                          or self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"))
+        QTimer.singleShot(3000, lambda: (
+            self.status_label.setText("Monitoring"),
+            self.status_label.setStyleSheet(f"color: {TEXT_MUTED};"),
+        ))
 
     def _open_advanced(self):
         if self._advanced_window and self._advanced_window.isVisible():

@@ -1,9 +1,35 @@
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QSystemTrayIcon, QMenu
-from PySide6.QtCore import Qt, QPoint
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon, QAction
 
 from core.network import NetworkSensor
-from gui.theme import BG_DARK, OV_BG, TEXT_MUTED
+from gui.theme import OV_BG
+
+
+class _MetricWidget(QWidget):
+    """Single metric: a label pair (prefix + value) with a separator."""
+
+    def __init__(self, prefix_text, font_size, small_size, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background: transparent;")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+
+        self._prefix = QLabel(f"{prefix_text}")
+        self._prefix.setFont(QFont("Consolas", small_size))
+        self._prefix.setStyleSheet("color: #475569; background: transparent;")
+        row.addWidget(self._prefix)
+
+        self._value = QLabel("--")
+        self._value.setFont(QFont("Consolas", font_size))
+        self._value.setStyleSheet("color: #94a3b8; background: transparent;")
+        row.addWidget(self._value)
+
+        self.value_label = self._value
+
+    def set_prefix(self, text):
+        self._prefix.setText(text)
 
 
 class OverlayWindow(QWidget):
@@ -25,66 +51,99 @@ class OverlayWindow(QWidget):
         self._position_window(ov)
         self.hide()
 
+    # ── UI ────────────────────────────────────────────────────────────
     def _build_ui(self, ov):
         font_size = ov.get("font_size", 12)
-        small_font_size = max(8, font_size - 2)
+        small_size = max(8, font_size - 2)
 
         self._outer = QWidget(self)
-        self._outer.setStyleSheet(f"background-color: {ov.get('bg_color', OV_BG)}; border-radius: 6px;")
+        self._outer.setObjectName("ov_bg")
+        self._outer.setStyleSheet(
+            f"QWidget#ov_bg {{ background-color: {ov.get('bg_color', OV_BG)}; "
+            f"border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }}"
+        )
 
-        layout = QHBoxLayout(self._outer)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
+        hlay = QHBoxLayout(self._outer)
+        hlay.setContentsMargins(14, 8, 14, 8)
+        hlay.setSpacing(0)
 
         self._metrics = {}
-        for key, default_prefix in [("cpu", "CPU"), ("gpu", "GPU"), ("ram", "RAM"), ("fps", "FPS"), ("net", "NET")]:
-            container = QWidget()
-            container.setStyleSheet("background: transparent;")
-            vl = QHBoxLayout(container)
-            vl.setContentsMargins(0, 0, 0, 0)
-            vl.setSpacing(0)
+        keys = ["cpu", "gpu", "ram", "fps", "net"]
+        labels = {"cpu": "CPU", "gpu": "GPU", "ram": "RAM", "fps": "FPS", "net": "NET"}
 
-            prefix = QLabel(f"{default_prefix}:")
-            prefix.setFont(QFont("Consolas", small_font_size))
-            prefix.setStyleSheet("color: #475569; background: transparent;")
-            vl.addWidget(prefix)
+        for i, key in enumerate(keys):
+            mw = _MetricWidget(labels[key], font_size, small_size)
+            self._metrics[key] = mw.value_label
+            hlay.addWidget(mw)
 
-            value = QLabel("--")
-            value.setFont(QFont("Consolas", font_size))
-            value.setStyleSheet("color: #94a3b8; background: transparent;")
-            vl.addWidget(value)
-
-            self._metrics[key] = value
-            layout.addWidget(container)
-
-            for w in [container, prefix, value]:
+            for w in [mw, mw._prefix, mw._value]:
                 w.mousePressEvent = self._on_press
                 w.mouseMoveEvent = self._on_drag
 
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(self._outer)
+            if i < len(keys) - 1:
+                sep = QLabel()
+                sep.setFixedWidth(1)
+                sep.setContentsMargins(8, 4, 8, 4)
+                sep.setStyleSheet("background-color: rgba(255,255,255,0.08);")
+                hlay.addWidget(sep)
 
+                sep.mousePressEvent = self._on_press
+                sep.mouseMoveEvent = self._on_drag
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(self._outer)
+
+    # ── Opacity ───────────────────────────────────────────────────────
     def _apply_opacity(self, ov):
         opacity = ov.get("opacity", 0.85)
-        self.setWindowOpacity(max(0.3, min(1.0, opacity)))
+        self.setWindowOpacity(max(0.2, min(1.0, opacity)))
+
+    # ── Positioning ───────────────────────────────────────────────────
+    def _screen_geo(self):
+        s = self.screen()
+        return s.availableGeometry() if s else None
 
     def _position_window(self, ov):
-        position = ov.get("position", "top-right")
         self.adjustSize()
-        sw = self.screen().availableGeometry().width()
-        sh = self.screen().availableGeometry().height()
+        geo = self._screen_geo()
+        if geo is None:
+            return
+        sw, sh = geo.width(), geo.height()
         w, h = self.width(), self.height()
-        margin = 12
-        positions = {
-            "top-right": (sw - w - margin, margin),
-            "top-left": (margin, margin),
-            "bottom-right": (sw - w - margin, sh - h - margin),
-            "bottom-left": (margin, sh - h - margin),
-        }
-        x, y = positions.get(position, positions["top-right"])
-        self.move(max(0, x), max(0, y))
+        margin = 14
+        position = ov.get("position", "top-right")
 
+        if position == "top-left":
+            x, y = geo.x() + margin, geo.y() + margin
+        elif position == "bottom-right":
+            x, y = geo.x() + sw - w - margin, geo.y() + sh - h - margin
+        elif position == "bottom-left":
+            x, y = geo.x() + margin, geo.y() + sh - h - margin
+        else:  # top-right (default)
+            x, y = geo.x() + sw - w - margin, geo.y() + margin
+
+        self.move(x, y)
+
+    def _clamp_to_screen(self):
+        """Ensure the overlay is fully visible on the current monitor."""
+        geo = self._screen_geo()
+        if geo is None:
+            return
+        margin = 4
+        x, y = self.x(), self.y()
+        w, h = self.width(), self.height()
+
+        max_x = geo.x() + geo.width() - w - margin
+        min_x = geo.x() + margin
+        max_y = geo.y() + geo.height() - h - margin
+        min_y = geo.y() + margin
+
+        x = max(min_x, min(x, max_x))
+        y = max(min_y, min(y, max_y))
+        self.move(x, y)
+
+    # ── Drag ──────────────────────────────────────────────────────────
     def _on_press(self, event):
         self._drag_data["x"] = event.globalPosition().x() - self.x()
         self._drag_data["y"] = event.globalPosition().y() - self.y()
@@ -94,6 +153,7 @@ class OverlayWindow(QWidget):
         y = event.globalPosition().y() - self._drag_data["y"]
         self.move(int(x), int(y))
 
+    # ── Data update ───────────────────────────────────────────────────
     def update_values(self, snap):
         ov = self.config.get("overlay", {})
 
@@ -134,6 +194,10 @@ class OverlayWindow(QWidget):
         else:
             self._metrics["net"].setText("")
 
+        self.adjustSize()
+        self._clamp_to_screen()
+
+    # ── Helpers ───────────────────────────────────────────────────────
     @staticmethod
     def _color(value, warn, crit):
         if value >= crit:
@@ -142,10 +206,14 @@ class OverlayWindow(QWidget):
             return "#f59e0b"
         return "#22c55e"
 
+    # ── Config ────────────────────────────────────────────────────────
     def apply_config(self, overlay_cfg):
         self.config["overlay"] = overlay_cfg
         bg = overlay_cfg.get("bg_color", OV_BG)
-        self._outer.setStyleSheet(f"background-color: {bg}; border-radius: 6px;")
+        self._outer.setStyleSheet(
+            f"QWidget#ov_bg {{ background-color: {bg}; "
+            f"border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }}"
+        )
         self._apply_opacity(overlay_cfg)
         self._position_window(overlay_cfg)
 

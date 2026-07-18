@@ -17,7 +17,7 @@ pyinstaller ^
     --hidden-import ctypes ^
     --noconfirm ^
     --clean ^
-    main.py
+    main_qt.py
 
 echo.
 if %ERRORLEVEL% EQU 0 (

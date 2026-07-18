@@ -2,7 +2,6 @@ import customtkinter as ctk
 import tkinter
 import threading
 import os
-import ctypes
 from typing import Optional
 from core.sensors import SensorSnapshot, get_assets_dir
 from gui.overlay import OverlayWindow
@@ -42,7 +41,6 @@ ACCENT = "#60a5fa"
 ACCENT_DIM = "#3b82f6"
 BG_DARK = "#0f172a"
 BG_CARD = "#1e293b"
-BG_CARD_HOVER = "#253349"
 TEXT_PRIMARY = "#f1f5f9"
 TEXT_SECONDARY = "#94a3b8"
 TEXT_MUTED = "#64748b"
@@ -320,7 +318,7 @@ class MainWindow(ctk.CTk):
         self.cpu_card = ComponentCard(content, "CPU", "\u2699\uFE0F", lines=3)
         self.cpu_card.pack(fill="x", pady=4)
 
-        self.gpu_card = ComponentCard(content, "GPU", "\uD83C\uDFAE", lines=3)
+        self.gpu_card = ComponentCard(content, "GPU", "\uD83D\uDDA5", lines=3)
         self.gpu_card.pack(fill="x", pady=4)
 
         self.ram_card = ComponentCard(content, "RAM", "\uD83D\uDCE6", lines=3)

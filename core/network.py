@@ -1,7 +1,7 @@
 import time
 import logging
 import psutil
-from typing import Optional, Dict
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

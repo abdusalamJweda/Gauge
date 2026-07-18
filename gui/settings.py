@@ -1,12 +1,11 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QSlider, QRadioButton, QLineEdit, QButtonGroup, QWidget, QScrollArea,
-    QFrame, QSizePolicy
+    QSlider, QRadioButton, QLineEdit, QButtonGroup, QWidget, QScrollArea
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 
-from gui.theme import BG_DARK, ACCENT, ACCENT_DIM, TEXT_SECONDARY, TEXT_MUTED, label_font, mono_font
+from gui.theme import BG_DARK, ACCENT, ACCENT_DIM, TEXT_SECONDARY, TEXT_MUTED
 
 
 class SettingsDialog(QDialog):
