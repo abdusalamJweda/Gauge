@@ -99,11 +99,17 @@ def main():
             from PIL import Image, ImageDraw
 
             def create_tray_icon():
+                from core.sensors import get_assets_dir
+                assets = get_assets_dir()
+                ico_path = os.path.join(assets, "gauge.ico")
+                png_path = os.path.join(assets, "gauge.png")
+                if os.path.exists(ico_path):
+                    return Image.open(ico_path).resize((64, 64), Image.LANCZOS)
+                if os.path.exists(png_path):
+                    return Image.open(png_path).resize((64, 64), Image.LANCZOS)
                 img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
                 draw = ImageDraw.Draw(img)
-                draw.rectangle([8, 8, 56, 56], fill="#2563eb", outline="#60a5fa", width=2)
-                draw.rectangle([16, 20, 48, 48], fill="#1e3a5f")
-                draw.rectangle([20, 14, 44, 20], fill="#60a5fa")
+                draw.rounded_rectangle([8, 8, 56, 56], radius=10, fill="#0f172a", outline="#60a5fa", width=2)
                 return img
 
             def on_show(icon, item):

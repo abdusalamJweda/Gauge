@@ -17,5 +17,21 @@
     "show_gpu": true,
     "show_ram": true,
     "show_disk": true
+  },
+  "overlay": {
+    "bg_color": "#1e1e2e",
+    "enabled": true,
+    "font_size": 10,
+    "opacity": 0.41,
+    "position": "top-right",
+    "show_cpu": true,
+    "show_fps": true,
+    "show_gpu": true,
+    "show_net": true,
+    "show_ram": true
+  },
+  "graphs": {
+    "enabled": true,
+    "max_points": 60
   }
 }

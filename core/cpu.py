@@ -184,6 +184,8 @@ class CpuSensor:
             temp = _get_psutil_temp()
         self._last_temp = temp
 
+        per_core = self._get_per_core_usage()
+
         return {
             "model_name": self._model_name,
             "usage_percent": usage,
@@ -191,4 +193,14 @@ class CpuSensor:
             "freq_mhz": round(self._last_freq, 0) if self._last_freq else None,
             "core_count": self._core_count,
             "physical_cores": self._physical_cores,
+            "per_core_usage": per_core,
         }
+
+    def _get_per_core_usage(self):
+        try:
+            per_cpu = psutil.cpu_percent(interval=0, percpu=True)
+            if per_cpu:
+                return [round(c, 1) for c in per_cpu]
+        except Exception:
+            pass
+        return []
