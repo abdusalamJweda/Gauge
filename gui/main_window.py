@@ -198,7 +198,10 @@ class DiskCard(QFrame):
 
     def _refresh_display(self, d):
         fmt = self._fmt_size
-        l1 = f"{d['device']}  |  {fmt(d['used_gb'])} / {fmt(d['total_gb'])}  ({d['percent']:.0f}%)"
+        temp_str = ""
+        if d.get("temp_celsius") is not None:
+            temp_str = f"  |  Temp: {d['temp_celsius']:.0f}\u00b0C"
+        l1 = f"{d['device']}  |  {fmt(d['used_gb'])} / {fmt(d['total_gb'])}  ({d['percent']:.0f}%){temp_str}"
         l2 = f"Free: {fmt(d['free_gb'])}  |   {d['fstype']}"
         self._detail_labels[0].setText(l1)
         self._detail_labels[1].setText(l2)
@@ -585,12 +588,18 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def closeEvent(self, event):
+        event.ignore()
+        self._overlay.hide_overlay()
+        self.hide()
+
     def _on_close(self):
         self._tray.stop()
         self._overlay.close()
         self.aggregator.stop()
         self.csv_logger.stop()
-        self.close()
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()
 
 
 class SensorPollWorker(QObject):

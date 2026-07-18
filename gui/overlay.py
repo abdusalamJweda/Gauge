@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QSystemTrayIcon, QMenu
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon, QAction
 
 from core.network import NetworkSensor
@@ -37,6 +37,7 @@ class OverlayWindow(QWidget):
         super().__init__(parent)
         self.config = config
         self._drag_data = {"x": 0, "y": 0}
+        self._font_size = config.get("overlay", {}).get("font_size", 12)
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -55,6 +56,7 @@ class OverlayWindow(QWidget):
     def _build_ui(self, ov):
         font_size = ov.get("font_size", 12)
         small_size = max(8, font_size - 2)
+        self._font_size = font_size
 
         self._outer = QWidget(self)
         self._outer.setObjectName("ov_bg")
@@ -71,10 +73,17 @@ class OverlayWindow(QWidget):
         keys = ["cpu", "gpu", "ram", "fps", "net"]
         labels = {"cpu": "CPU", "gpu": "GPU", "ram": "RAM", "fps": "FPS", "net": "NET"}
 
+        self._populate_metrics(hlay, keys, labels, font_size, small_size)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.addWidget(self._outer)
+
+    def _populate_metrics(self, layout, keys, labels, font_size, small_size):
         for i, key in enumerate(keys):
             mw = _MetricWidget(labels[key], font_size, small_size)
             self._metrics[key] = mw.value_label
-            hlay.addWidget(mw)
+            layout.addWidget(mw)
 
             for w in [mw, mw._prefix, mw._value]:
                 w.mousePressEvent = self._on_press
@@ -85,14 +94,10 @@ class OverlayWindow(QWidget):
                 sep.setFixedWidth(1)
                 sep.setContentsMargins(8, 4, 8, 4)
                 sep.setStyleSheet("background-color: rgba(255,255,255,0.08);")
-                hlay.addWidget(sep)
+                layout.addWidget(sep)
 
                 sep.mousePressEvent = self._on_press
                 sep.mouseMoveEvent = self._on_drag
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(self._outer)
 
     # ── Opacity ───────────────────────────────────────────────────────
     def _apply_opacity(self, ov):
@@ -126,7 +131,6 @@ class OverlayWindow(QWidget):
         self.move(x, y)
 
     def _clamp_to_screen(self):
-        """Ensure the overlay is fully visible on the current monitor."""
         geo = self._screen_geo()
         if geo is None:
             return
@@ -154,19 +158,26 @@ class OverlayWindow(QWidget):
         self.move(int(x), int(y))
 
     # ── Data update ───────────────────────────────────────────────────
+    def _fmt_temp(self, temp):
+        if temp is None:
+            return ""
+        return f" {temp:.0f}\u00b0"
+
     def update_values(self, snap):
         ov = self.config.get("overlay", {})
 
         if ov.get("show_cpu", True) and snap.cpu_usage is not None:
             c = self._color(snap.cpu_usage, 65, 85)
-            self._metrics["cpu"].setText(f"{snap.cpu_usage:.0f}%")
+            temp = self._fmt_temp(snap.cpu_temp)
+            self._metrics["cpu"].setText(f"{snap.cpu_usage:.0f}%{temp}")
             self._metrics["cpu"].setStyleSheet(f"color: {c}; background: transparent;")
         else:
             self._metrics["cpu"].setText("")
 
         if ov.get("show_gpu", True) and snap.gpu_usage is not None:
             c = self._color(snap.gpu_usage, 75, 90)
-            self._metrics["gpu"].setText(f"{snap.gpu_usage:.0f}%")
+            temp = self._fmt_temp(snap.gpu_temp)
+            self._metrics["gpu"].setText(f"{snap.gpu_usage:.0f}%{temp}")
             self._metrics["gpu"].setStyleSheet(f"color: {c}; background: transparent;")
         else:
             self._metrics["gpu"].setText("")
@@ -215,7 +226,26 @@ class OverlayWindow(QWidget):
             f"border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); }}"
         )
         self._apply_opacity(overlay_cfg)
+        new_font = overlay_cfg.get("font_size", 12)
+        if new_font != self._font_size:
+            self._rebuild_ui(overlay_cfg)
+            self.adjustSize()
         self._position_window(overlay_cfg)
+
+    def _rebuild_ui(self, ov):
+        layout = self._outer.layout()
+        while layout.count():
+            item = layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        self._metrics.clear()
+        font_size = ov.get("font_size", 12)
+        small_size = max(8, font_size - 2)
+        self._font_size = font_size
+        keys = ["cpu", "gpu", "ram", "fps", "net"]
+        labels = {"cpu": "CPU", "gpu": "GPU", "ram": "RAM", "fps": "FPS", "net": "NET"}
+        self._populate_metrics(layout, keys, labels, font_size, small_size)
 
     def show_overlay(self):
         self.show()

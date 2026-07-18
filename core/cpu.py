@@ -20,12 +20,7 @@ def is_admin() -> bool:
 
 def _get_dll_path() -> str:
     if getattr(sys, "frozen", False):
-        try:
-            buf = ctypes.create_unicode_buffer(512)
-            ctypes.windll.kernel32.GetModuleFileNameW(None, buf, 512)
-            base = os.path.dirname(os.path.abspath(buf.value))
-        except Exception:
-            base = os.path.dirname(os.path.abspath(sys.argv[0]))
+        base = sys._MEIPASS
     else:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, "assets", "LibreHardwareMonitorLib.dll")
