@@ -17,8 +17,10 @@ test_disk_admin.bat
 run_test.bat
 *.exe
 *.spec
+main.build/
 main.dist/
-main_qt.dist/
+main.onefile-build/
 main_qt.build/
+main_qt.dist/
 main_qt.onefile-build/
 logs/
