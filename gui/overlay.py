@@ -153,9 +153,10 @@ class OverlayWindow(QWidget):
         self._drag_data["y"] = event.globalPosition().y() - self.y()
 
     def _on_drag(self, event):
-        x = event.globalPosition().x() - self._drag_data["x"]
-        y = event.globalPosition().y() - self._drag_data["y"]
-        self.move(int(x), int(y))
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            x = event.globalPosition().x() - self._drag_data["x"]
+            y = event.globalPosition().y() - self._drag_data["y"]
+            self.move(int(x), int(y))
 
     # ── Data update ───────────────────────────────────────────────────
     def _fmt_temp(self, temp):
