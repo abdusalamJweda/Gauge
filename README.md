@@ -37,7 +37,7 @@ A lightweight, real-time hardware monitoring tool for Windows built in Python. M
 
 ## Screenshots
 
-> _Add screenshots here after building._
+> _Screenshots coming soon._
 
 ---
 
@@ -140,11 +140,11 @@ All settings live in `config.json`. Key options:
 
 ```
 Gauge/
-├── main_qt.py            # Qt entry point (recommended)
-├── main.py               # CustomTkinter entry point (legacy)
+├── main_qt.py            # Qt entry point
 ├── config.json           # User configuration
 ├── requirements.txt
 ├── build.bat             # PyInstaller build script
+├── Gauge.spec            # PyInstaller spec file
 ├── core/
 │   ├── sensors.py        # SensorAggregator — orchestrates all polling
 │   ├── cpu.py            # CPU sensor (psutil + LHM for temps)
@@ -165,7 +165,7 @@ Gauge/
 │   ├── settings.py       # Settings dialog
 │   ├── advanced.py       # Advanced details tab
 │   ├── graphs.py         # Live metric graphs
-│   ├── app.py            # CustomTkinter app (legacy)
+│   ├── app.py            # CustomTkinter app (legacy, unused)
 │   └── theme.py          # Color constants
 ├── assets/
 │   ├── gauge.ico         # App icon
